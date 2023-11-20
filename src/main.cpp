@@ -4,18 +4,66 @@
 #include "dictionary.hpp"
 #include "radomStr.h"
 #include "bean.hpp"
+#include "evaluate.h"
 // #include "http_request.h"
 
-class AAA
-{
-public:
-    AAA(int d) : a(d), b(d), c(d), f(d), g(d){};
-    AAA(int d1, int d2) : a(d1), b(d2), c(d2), f(d2), g(d2){};
-    AAA &getSize() { return *this; }
-    int a, b, c, f, g, h;
-};
+// class AAA
+// {
+// public:
+//     AAA(int d) : a(d), b(d), c(d), f(d), g(d){};
+//     AAA(int d1, int d2) : a(d1), b(d2), c(d2), f(d2), g(d2){};
+//     AAA &getSize() { return *this; }
+//     int a, b, c, f, g, h;
+// };
 
-#define ZT "zt"
+#define D_ZT "zt"
+#define D_LBRACKET "===============["
+#define D_RBRACKET "]==============="
+#define D_PATH "../file/"
+#define D_REGEX R"(\d{6})" //"\\d{6}"
+
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__) || _WIN64
+#define D_TXT_EXTENSION ".txt"
+#else
+#define D_TXT_EXTENSION
+#endif
+
+std::vector<std::string> getQueue(const std::string &file, Dictionary<std::string, std::string> &myDict)
+{
+    std::vector<std::string> tempq;
+
+    if (myDict.containsKey(file))
+    {
+        tempq = myDict.findValues(file);
+    }
+    else
+    {
+        std::string fileName = file;
+
+        if (file.size() >= 4 && file.substr(file.length() - 4) != D_TXT_EXTENSION)
+        {
+            fileName += D_TXT_EXTENSION;
+        }
+
+        tempq = getMatchingElements<std::string>(D_PATH + fileName, D_REGEX);
+
+        if (fileName.size() > 2 && fileName.substr(0, 2) == D_ZT)
+        {
+            auto subKey = file.substr(2);
+
+            if (myDict.containsSubKey(subKey))
+            {
+                myDict.updateSubKey(subKey, tempq);
+            }
+            else
+            {
+                myDict.addSubKey(subKey, tempq);
+            }
+        }
+    }
+
+    return tempq;
+}
 
 int main(int argc, char *argv[])
 {
@@ -35,124 +83,239 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        std::vector<std::string> splitted;
-
-        if (input.find('&') != std::string::npos && input.find('+') != std::string::npos || input.find('&') != std::string::npos && input.find('-') != std::string::npos || input.find('+') != std::string::npos && input.find('-') != std::string::npos)
-        {
-            std::cout << "Sorry, the keys you entered is not valid. Please check and try again!!!" << std::endl;
-            continue;
-        }
-
         if (myDict.containsKey(input))
         {
-            std::cout << "[" << input << "]" << std::endl;
+            std::cout << D_LBRACKET << input << D_RBRACKET << std::endl;
             myDict.printKey(input);
+            std::cout << D_LBRACKET << input << D_RBRACKET << std::endl;
 
             continue;
         }
-        else if (input.find('&') != std::string::npos)
+
+        std::vector<std::string> postfix;
+
+        try
         {
-            splitted = splitString(input, '&');
-            bean = new CommonBean<std::string>;
+            postfix = infixToPostfix(input);
+
+#ifdef DEBUG
+            for (auto item : postfix)
+            {
+                std::cout << item << " | ";
+            }
+            std::cout << std::endl;
+#endif
         }
-        else if (input.find('+') != std::string::npos)
+        catch (const char *errorMessage)
         {
-            splitted = splitString(input, '+');
-            bean = new MergeBean<std::string>;
+            std::cerr << errorMessage << std::endl;
+            continue;
         }
-        else if (input.find('-') != std::string::npos)
+
+        if (postfix.empty())
         {
-            splitted = splitString(input, '-');
-            bean = new DifferenceBean<std::string>;
+            throw "error 0: There must be something wrong in this!!!";
+        }
+        std::vector<std::string> queue;
+
+        if (postfix.size() == 1 && !isOperator(postfix.front()))
+        {
+            std::string fileName = postfix.front();
+            queue = getQueue(fileName, myDict);
         }
         else
         {
-            std::string fileName = input;
+            std::stack<std::string> splitted;
 
-            if (input.size() >= 4 && input.substr(input.length() - 4) != ".txt" && input.substr(input.length() - 4) != ".TXT")
+            for (const auto &item : postfix)
             {
-                fileName += ".txt";
-            }
-
-            std::vector<std::string> vector_f = getMatchingElements<std::string>("../file/" + fileName, R"(\d{6})");
-
-            if (vector_f.empty())
-            {
-                std::cout << input << " IS EMPTY QUEUE!!!" << std::endl;
-            }
-            else
-            {
-                myDict.addKey(input, vector_f);
-                std::cout << "[" << input << "]" << std::endl;
-                myDict.printKey(input);
-            }
-
-            continue;
-        }
-
-        std::vector<std::string> queue;
-
-        for (const std::string &str : splitted)
-        {
-            std::vector<std::string> tempq;
-
-            if (myDict.containsKey(str))
-            {
-                tempq = myDict.findValues(str);
-            }
-            else
-            {
-                tempq = getMatchingElements<std::string>("../file/" + str + ".txt", "\\d{6}");
-
-                if (str.size() < 3 || str.substr(0, 2) != ZT)
+                if (item.size() == 1 && isOperator(item[0]))
                 {
+                    switch (item[0])
+                    {
+                    case '+':
+                        bean = new MergeBean<std::string>;
+                        break;
+                    case '-':
+                        bean = new DifferenceBean<std::string>;
+                        break;
+                    case '&':
+                        bean = new CommonBean<std::string>;
+                        break;
+                    default:
+                        throw "Operators are not defined!!!";
+                    }
+
+                    std::string top0 = splitted.top();
+                    splitted.pop();
+
+                    std::string top1 = splitted.top();
+                    splitted.pop();
+
+                    auto queue0 = getQueue(top0, myDict);
+                    auto queue1 = getQueue(top1, myDict);
+
+                    if (bean == nullptr)
+                    {
+                        throw "Bean no has statue!!!";
+                    }
+
+                    if (myDict.containsKey(top0))
+                    {
+                        myDict.removeKey(top0);
+                    }
+
+                    auto tempQueue = bean->getElements(queue1, queue0);
+                    delete bean;
+                    auto key = newSubStr();
+                    myDict.addKey(key, tempQueue);
+                    splitted.push(key);
                 }
                 else
                 {
-                    auto subKey = str.substr(2);
-
-                    if (myDict.containsSubKey(subKey))
-                    {
-                        myDict.updateSubKey(subKey, tempq);
-                    }
-                    else
-                    {
-                        myDict.addSubKey(subKey, tempq);
-                    }
+                    splitted.push(item);
+                    continue;
                 }
             }
 
-            if (queue.empty())
+            if (bean != nullptr)
             {
-                queue = tempq;
-                continue;
+                bean = nullptr;
             }
 
-            queue = bean->getElements(queue, tempq);
+            if (splitted.size() != 1)
+            {
+                throw "error 1: There must be something wrong in this!!!";
+            }
+
+            std::string lastTop = splitted.top();
+
+            if (!myDict.containsKey(lastTop))
+            {
+                throw "error 2: There must be something wrong in this!!!";
+            }
+
+            queue = myDict.findValues(lastTop);
         }
 
         if (!queue.empty())
         {
             auto key = newStr();
             myDict.addKey(key, queue);
-            queue.clear();
+            // queue.clear();
 
-            std::cout << "[" << key << "]" << std::endl;
+            std::cout << D_LBRACKET << key << D_RBRACKET << std::endl;
             myDict.printKey(key);
+            std::cout << D_LBRACKET << key << D_RBRACKET << std::endl;
         }
         else
         {
             std::cout << "EMPTY QUEUE!!!" << std::endl;
         }
-
-        splitted.clear();
-
-        if (bean != nullptr)
-        {
-            delete bean;
-            bean = nullptr;
-        }
     }
 
     return 0;
 }
+
+// if (input.find('&') != std::string::npos)
+// {
+//     splitted = splitString(input, '&');
+//     bean = new CommonBean<std::string>;
+// }
+// else if (input.find('+') != std::string::npos)
+// {
+//     splitted = splitString(input, '+');
+//     bean = new MergeBean<std::string>;
+// }
+// else if (input.find('-') != std::string::npos)
+// {
+//     splitted = splitString(input, '-');
+//     bean = new DifferenceBean<std::string>;
+// }
+// else
+// {
+//     std::string fileName = input;
+
+//     if (input.size() >= 4 && input.substr(input.length() - 4) != ".txt" && input.substr(input.length() - 4) != ".TXT")
+//     {
+//         fileName += ".txt";
+//     }
+
+//     std::vector<std::string> vector_f = getMatchingElements<std::string>("../file/" + fileName, R"(\d{6})");
+
+//     if (vector_f.empty())
+//     {
+//         std::cout << input << " IS EMPTY QUEUE!!!" << std::endl;
+//     }
+//     else
+//     {
+//         myDict.addKey(input, vector_f);
+//         std::cout << "[" << input << "]" << std::endl;
+//         myDict.printKey(input);
+//     }
+
+//     continue;
+// }
+
+// std::vector<std::string> queue;
+
+// for (const std::string &str : splitted)
+// {
+//     std::vector<std::string> tempq;
+
+//     if (myDict.containsKey(str))
+//     {
+//         tempq = myDict.findValues(str);
+//     }
+//     else
+//     {
+//         tempq = getMatchingElements<std::string>("../file/" + str + ".txt", "\\d{6}");
+
+//         if (str.size() < 3 || str.substr(0, 2) != ZT)
+//         {
+//         }
+//         else
+//         {
+//             auto subKey = str.substr(2);
+
+//             if (myDict.containsSubKey(subKey))
+//             {
+//                 myDict.updateSubKey(subKey, tempq);
+//             }
+//             else
+//             {
+//                 myDict.addSubKey(subKey, tempq);
+//             }
+//         }
+//     }
+
+//     if (queue.empty())
+//     {
+//         queue = tempq;
+//         continue;
+//     }
+
+//     queue = bean->getElements(queue, tempq);
+// }
+
+// if (!queue.empty())
+// {
+//     auto key = newStr();
+//     myDict.addKey(key, queue);
+//     queue.clear();
+
+//     std::cout << "[" << key << "]" << std::endl;
+//     myDict.printKey(key);
+// }
+// else
+// {
+//     std::cout << "EMPTY QUEUE!!!" << std::endl;
+// }
+
+// splitted.clear();
+
+// if (bean != nullptr)
+// {
+//     delete bean;
+//     bean = nullptr;
+// }
