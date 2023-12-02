@@ -1,6 +1,7 @@
 #include "radomStr.h"
 
 #define K "k"
+#define KK "kk"
 
 char seed[64] = {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
@@ -25,4 +26,20 @@ std::string newStr()
     // return name;
     static int i = 0;
     return K + std::to_string(i++);
+}
+
+std::string newSubStr()
+{
+    // static std::random_device rd;  // 将用于为随机数引擎获得种子
+    // static std::mt19937 gen(rd()); // 以播种标准 mersenne_twister_engine
+    // static std::uniform_int_distribution<> dis(0, 61);
+    // std::string name = "";
+    // for (int n = 0; n < length; ++n){
+    //     // 用 dis 变换 gen 所生成的随机 unsigned int 到 [0, 62] 中的 int
+    //     int val = dis(gen);
+    //     name += seed[val];
+    // }
+    // return name;
+    static int i = 0;
+    return KK + std::to_string(i++);
 }

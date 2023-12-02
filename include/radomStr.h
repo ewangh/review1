@@ -5,3 +5,5 @@
 #include <algorithm>
 
 std::string newStr();
+
+std::string newSubStr();
